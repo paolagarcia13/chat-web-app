@@ -1,103 +1,195 @@
-package com.chatapp.daos.impl;
+package com.example.demo.repository;
 
+
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.List;
-import java.util.stream.Collectors;
 
-import com.chatapp.daos.UserDaoInterface;
-import com.chatapp.mappers.impl.UserMapper;
-import com.chatapp.models.User;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.jdbc.core.RowMapper;
+import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
+import org.springframework.jdbc.core.namedparam.NamedParameterJdbcTemplate;
+import org.springframework.stereotype.Repository;
 
-public class UserDao extends GenericDao<User> implements UserDaoInterface {
 
-	private static UserDao instance = null;
+import com.example.demo.model.User;
 
-	private UserDao() {
+@Repository
+public class UserRepository {
 
+
+	
+	@Autowired
+	private NamedParameterJdbcTemplate namedJdbcTemplate;
+	
+	public User findByusernameAndPassword(String username, String password) {
+		MapSqlParameterSource parameter = new MapSqlParameterSource();
+		parameter.addValue("usuario", username);
+		parameter.addValue("clave", password);
+		String sql = "select usu_usuario, usu_genero, usu_avatar" + "inner join (select usu_codigo from usuarios where usu_usuario = :usuario and usu_password = :clave)";
+		
+		List<User> listUser = namedJdbcTemplate.query(sql,parameter, new RowMapper<User>() {
+
+			@Override
+			public User mapRow(ResultSet rs, int rowNum) throws SQLException {
+			
+				User users = new User();
+				users.setUsername(rs.getString("usu_usuario"));
+				users.setPassword(rs.getString("usu_password"));
+				users.setGender(rs.getBoolean("usu_genero"));
+				users.setAvatar(rs.getString("usu_avatar"));
+				
+				
+				
+				return users;
+			}
+			
+		});
+		return listUser.isEmpty() ? null : listUser.get(0);
 	}
 
-	public synchronized static UserDao getInstace() {
-		if (instance == null) {
-			instance = new UserDao();
-		}
-		return instance;
+
+	public List<User> findFriends(String username) {
+		MapSqlParameterSource parameter = new MapSqlParameterSource();
+		parameter.addValue("usuario", username);
+		String sql = "select distinct u2.usu_usuario, u2.usu_avatar, u2.usu_genero"
+		+"from usuarios u1 join amigos f on u1.usu_usuario = f.receiver"
+		+"join usuarios u2 on u2.usu_usuario = f.sender"
+		+"where u1.usu_usuario LIKE ?";
+		
+		List<User> listUser = namedJdbcTemplate.query(sql,parameter, new RowMapper<User>() {
+			
+			@Override
+			public User mapRow(ResultSet rs, int rowNum) throws SQLException {
+
+				
+				User users = new User();
+				users.setUsername(rs.getString("usu_usuario"));
+				users.setGender(rs.getBoolean("usu_genero"));
+				users.setAvatar(rs.getString("usu_avatar"));
+				
+				
+								
+				return users;
+			}
+			
+		});
+		return listUser;
 	}
 
-	@Override
-	public User findByUserNameAndPassword(String userName, String password) {
-		StringBuilder sql = new StringBuilder("select username, gender, avatar");
-		sql.append(" from users where username=? and password=?");
-		List<User> users = query(sql.toString(), new UserMapper(), userName, password);
-		return users.isEmpty() ? null : users.get(0);
-	}
-
-	@Override
-	public List<User> findFriends(String userName) {
-		StringBuilder sql = new StringBuilder("select distinct u2.username, u2.avatar, u2.gender");
-		sql.append(" from users u1 join friends f on u1.username = f.receiver");
-		sql.append(" join users u2 on u2.username = f.sender");
-		sql.append(" where u1.username LIKE ?");
-		String param = "%" + userName + "%";
-		List<User> users = query(sql.toString(), new UserMapper(), param);
-		return users.stream().filter(u -> !u.getUsername().equals(userName)).collect(Collectors.toList());
-	}
-
-	@Override
-	public void saveUser(Boolean isRegister, User user) {
-		String username = user.getUsername();
-		String password = user.getPassword();
-		Boolean gender = user.isGender();
-		String avatar = user.getAvatar();
-		StringBuilder sql = new StringBuilder("insert into users values(?,?,?,?)");
-		if (isRegister) {
-			save(sql.toString(), username, password, gender, avatar);
+		
+	public void saveUser(Boolean isRegister, User users) {
+		MapSqlParameterSource parameter = new MapSqlParameterSource();
+		String username = users.getUsername();
+		String password = users.getPassword();
+		Boolean gender = users.isGender();
+		String avatar = users.getAvatar();
+			if (isRegister) {
+			parameter.addValue("usuario", username);
+			parameter.addValue("clave", password);
+			parameter.addValue("genero", gender);
+			parameter.addValue("avatar", avatar);
+			String sql = "insert into usuarios(usu_usuario, usu_password, usu_genero, usu_avatar)";
+			namedJdbcTemplate.update(sql, parameter);
 		} else {
-			sql = new StringBuilder("update users set password=?, gender=?, avatar=? where username=?");
-			save(sql.toString(), password, gender, avatar, username);
+			parameter.addValue("usuario", username);
+			parameter.addValue("clave", password);
+			parameter.addValue("genero", gender);
+			parameter.addValue("avatar", avatar);
+			String sql = "insert into usuarios(usu_usuario, usu_password, usu_genero, usu_avatar)";
+			namedJdbcTemplate.update(sql, parameter);
 		}
 	}
 
-	@Override
-	public List<User> findFriendsByKeyWord(String userName, String keyWord) {
-		StringBuilder sql = new StringBuilder("select u2.username, u2.avatar, u2.gender");
-		sql.append(" from users u2 where username != ? and username like ?");
-		String param = "%" + keyWord + "%";
-		List<User> users = query(sql.toString(), new UserMapper(), userName, param);
-		return users;
+
+	public List<User> findFriendsByKeyWord(String username, String keyWord) {
+		MapSqlParameterSource parameter = new MapSqlParameterSource();
+		parameter.addValue("usuario", username);
+		parameter.addValue("codigo", keyWord);
+		String sql = "select u2.username, u2.avatar, u2.gender"+"from usuarios u2 where usu_usuario != ? and username like ?";
+
+		List<User> listUser = namedJdbcTemplate.query(sql,parameter, new RowMapper<User>() {
+			
+			@Override
+			public User mapRow(ResultSet rs, int rowNum) throws SQLException {
+
+				
+				User users = new User();
+				users.setUsername(rs.getString("usu_usuario"));
+				users.setAvatar(rs.getString("usu_avatar"));
+				users.setGender(rs.getBoolean("usu_genero"));
+				users.setCodigo(rs.getInt("usu_codigo"));
+				
+				
+				
+								
+				return users;
+			}
+			
+		});
+		
+		return listUser;
 
 	}
 
-	@Override
-	public List<User> findUsersByConversationId(Long id) {
-		StringBuilder sql = new StringBuilder();
-		sql.append("select u.username, u.avatar, u.gender, cu.is_admin");
-		sql.append(" from users u join conversations_users cu");
-		sql.append(" on u.username = cu.username");
-		sql.append(" join conversations c");
-		sql.append(" on c.id = cu.conversations_id");
-		sql.append(" where c.id = ?");
-		List<User> users = query(sql.toString(), new UserMapper(), id);
-		return users;
+
+	public List<User> findUsersByConversationId(Integer id){
+		MapSqlParameterSource parameter = new MapSqlParameterSource();
+		parameter.addValue("codigo", id);
+		String sql ="select u.usu_usuario, u.usu_avatar, u.usu_genero, cu.is_admin"+"from usuarios u join conversations_users cu"
+					+" on u.usu_usuario = cu.usu_usuario"+" join conversations c"+" on c.id = cu.conversations_id"
+					+" where c.id = ?";
+		
+
+		List<User> listUser = namedJdbcTemplate.query(sql,parameter, new RowMapper<User>() {
+			
+			@Override
+			public User mapRow(ResultSet rs, int rowNum) throws SQLException {
+				
+				User users = new User();
+				
+				users.setCodigo(rs.getInt("usu_codigo"));
+				
+				return users;
+			}
+			
+		});
+		
+			
+		return listUser;
 	}
 
-	@Override
-	public List<User> findFriendsNotInConversation(String userName, String keyword, Long conversationId) {
-		StringBuilder sql = new StringBuilder();
-		sql.append("select u2.username,u2.avatar,u2.gender");
-		sql.append(" from users u1 join friends f on u1.username = f.receiver ");
-		sql.append(" join users u2 on u2.username = f.sender");
-		sql.append(" where u1.username = ?");
-		sql.append(" and f.status = 1");
-		sql.append(" and u2.username like ?");
-		sql.append(" and u2.username not in (");
-		sql.append(" select u.username");
-		sql.append(" from users u join conversations_users cu");
-		sql.append(" on u.username = cu.username");
-		sql.append(" join conversations c");
-		sql.append(" on c.id = cu.conversations_id");
-		sql.append(" where c.id = ?)");
-		String param = "%" + keyword + "%";
-		List<User> users = query(sql.toString(), new UserMapper(), userName, param, conversationId);
-		return users;
-	}
+	
+	public List<User> findFriendsNotInConversation(String username, String codigo, Integer conversationId) {
+		MapSqlParameterSource parameter = new MapSqlParameterSource();
+		parameter.addValue("usuario", username);
+		parameter.addValue("codigo", codigo);
+		parameter.addValue("admin", conversationId);
+		String sql ="select u2.usu_usuario,u2.usu_avatar,u2.usu_genero"+" from usuarios u1 join amigos f on u1.usu_usuario = f.receiver "
+					+" join ususarios u2 on u2.usu_usuario = f.sender"+" where u1.usu_usuario = ?"+" and f.status = 1"
+					+" and u2.usu_usuario like ?"+" and u2.usu_usuario not in ("+" select u.usu_usuario"
+					+" from usuarios u join conversations_users cu"+" on u.usu_usuario = cu.usu_usuario"
+					+" join conversations c"+" on c.id = cu.conversations_id"+" where c.id = ?)";
+	
+	
+		List<User> listUser = namedJdbcTemplate.query(sql,parameter, new RowMapper<User>() {
+			
+			@Override
+			public User mapRow(ResultSet rs, int rowNum) throws SQLException {
 
+				
+				User users = new User();
+				users.setUsername(rs.getString("usu_usuario"));
+				users.setAvatar(rs.getString("usu_avatar"));
+				users.setGender(rs.getBoolean("usu_genero"));
+				users.setCodigo(rs.getInt("usu_codigo"));
+				users.setCodigo(rs.getInt("isAdmin"));
+				
+				
+		return users;
+			}
+		});
+		return listUser;
+
+	}
 }
